@@ -30,8 +30,6 @@
     },
     onHello: function (msg) {
       joinUrls = msg.urls || [];
-      var code = codeFromUrl();
-      if (code) { session.join({ code: code, name: myName() }); }
     },
     onRoom: function (msg) {
       joinUrls = msg.urls || joinUrls;
@@ -255,6 +253,11 @@
       e.preventDefault();
       var code = ($('input-code').value || '').trim().toUpperCase();
       if (code.length !== 4) { view.toast('A code is four characters.', 'bad'); return; }
+      if (!($('input-name').value || '').trim()) {
+        view.toast('Put your name in first.', 'bad');
+        $('input-name').focus();
+        return;
+      }
       useNet().join({ code: code, name: myName() });
     });
 
@@ -374,9 +377,17 @@
     wire();
     view.setScreen('home');
 
-    // Arriving on a join link: connect and let onHello do the joining.
-    if (canGoOnline && codeFromUrl()) {
-      $('input-code').value = codeFromUrl();
+    // Arriving on a join link: fill the table in and open the socket while
+    // they type, but never seat anyone under a name they were not asked for.
+    var linked = canGoOnline && codeFromUrl();
+    if (linked) {
+      $('input-code').value = linked;
+      $('join-row').hidden = false;
+      $('home-note').textContent =
+        'Table ' + linked + ' is waiting. Put your name in and tap Join.';
+      var name = $('input-name');
+      name.focus();
+      name.select();
       useNet();
     }
   });
