@@ -137,15 +137,19 @@ function play(c) {
     http.get(`http://127.0.0.1:${port}${p}`, r => {
       let body = '';
       r.on('data', d => { body += d; });
-      r.on('end', () => res({ status: r.statusCode, body, type: r.headers['content-type'] }));
+      r.on('end', () => res({ status: r.statusCode, body, type: r.headers['content-type'],
+                              location: r.headers.location }));
     }).on('error', rej);
   });
 
   check('serves the app', (await get('/')).body.includes('UNO FLIP'));
-  check('serves a join link', (await get('/r/ABCD')).body.includes('UNO FLIP'));
+  check('serves a join link', (await get('/?r=ABCD')).body.includes('UNO FLIP'));
+  const legacy = await get('/r/ABCD');
+  check('redirects an old path join link',
+    legacy.status === 302 && legacy.location === '/?r=ABCD', legacy.status + ' ' + legacy.location);
   check('serves the stylesheet', (await get('/css/app.css')).status === 200);
   check('serves the engine', (await get('/js/game.js')).status === 200);
-  const qr = await get('/qr.svg?d=' + encodeURIComponent('http://example.test/r/ABCD'));
+  const qr = await get('/qr.svg?d=' + encodeURIComponent('http://example.test/?r=ABCD'));
   check('renders a join QR code', qr.status === 200 && qr.body.includes('<svg'));
   check('hides the server source', (await get('/server/server.js')).status === 404);
   check('blocks path traversal',

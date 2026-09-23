@@ -36,7 +36,7 @@
     onRoom: function (msg) {
       joinUrls = msg.urls || joinUrls;
       if (msg.code && window.history.replaceState) {
-        window.history.replaceState({}, '', '/r/' + msg.code);
+        window.history.replaceState({}, '', '/?r=' + msg.code);
       }
     },
     onState: function (v) {
@@ -187,11 +187,17 @@
     var host = window.location.hostname;
     var local = host === 'localhost' || host === '127.0.0.1' || host === '::1';
     var base = (local && joinUrls[0]) || window.location.origin;
-    return base.replace(/\/r\/[A-Z0-9]{4}$/i, '') + '/r/' + code;
+    // The code rides in the query, not the path: a page served at /r/CODE
+    // resolves index.html's relative css/ and js/ against /r/ and loads
+    // unstyled and dead. At the root they resolve, on file:// too.
+    return base.replace(/\/?(?:\?r=|r\/)[A-Z0-9]{4}\/?$/i, '') + '/?r=' + code;
   }
 
   function codeFromUrl() {
-    var m = window.location.pathname.match(/^\/r\/([A-Z0-9]{4})\/?$/i);
+    // /?r=CODE is the link we hand out; /r/CODE is an older one, which the
+    // server redirects, but read it too for a link opened straight off disk.
+    var m = window.location.search.match(/[?&]r=([A-Z0-9]{4})(?:&|$)/i) ||
+            window.location.pathname.match(/^\/r\/([A-Z0-9]{4})\/?$/i);
     return m ? m[1].toUpperCase() : null;
   }
 
@@ -368,7 +374,7 @@
     wire();
     view.setScreen('home');
 
-    // Arriving on a /r/CODE link: connect and let onHello do the joining.
+    // Arriving on a join link: connect and let onHello do the joining.
     if (canGoOnline && codeFromUrl()) {
       $('input-code').value = codeFromUrl();
       useNet();

@@ -58,9 +58,15 @@ const server = http.createServer(async (req, res) => {
   const url = new URL(req.url, 'http://' + (req.headers.host || 'localhost'));
   let pathname = decodeURIComponent(url.pathname);
 
-  // A join link carries the room code: /r/ABCD -> serve the app, the client
-  // reads the code back out of the address bar.
-  if (/^\/r\/[A-Z0-9]{4}\/?$/i.test(pathname)) { pathname = '/'; }
+  // A join link carries the room code in the query: /?r=ABCD. Older links
+  // put it in the path, but index.html's relative css/ and js/ then resolve
+  // against /r/ and 404, so the app arrived unstyled and dead - redirect.
+  const legacy = pathname.match(/^\/r\/([A-Z0-9]{4})\/?$/i);
+  if (legacy) {
+    res.writeHead(302, { Location: '/?r=' + legacy[1].toUpperCase() });
+    res.end();
+    return;
+  }
 
   if (pathname === '/qr.svg') {
     const text = url.searchParams.get('d') || '';
@@ -357,7 +363,7 @@ function lanAddresses() {
 }
 
 function lanUrls(code) {
-  const suffix = code ? '/r/' + code : '';
+  const suffix = code ? '/?r=' + code : '';
   return lanAddresses().map(ip => `http://${ip}:${PORT}${suffix}`);
 }
 
