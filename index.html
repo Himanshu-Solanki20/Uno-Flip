@@ -1,0 +1,247 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1">
+<meta name="theme-color" content="#0b1220">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<title>UNO FLIP!</title>
+<link rel="stylesheet" href="css/app.css">
+</head>
+<body data-side="light" data-screen="home">
+
+<!-- ====================================================== HOME ========== -->
+<section class="screen" id="screen-home">
+  <div class="home">
+    <div class="logo">
+      <span class="logo-uno">UNO</span>
+      <span class="logo-flip">FLIP!</span>
+    </div>
+    <p class="tagline">Play on this screen, or on every phone in the room.</p>
+
+    <label class="name-field">
+      <span>Your name</span>
+      <input id="input-name" type="text" maxlength="14" placeholder="Player"
+             autocomplete="nickname" autocapitalize="words" spellcheck="false">
+    </label>
+
+    <div class="home-actions">
+      <button class="btn btn-primary btn-xl" id="btn-create">Create a table</button>
+      <button class="btn btn-xl" id="btn-join-open">Join with a code</button>
+      <button class="btn btn-ghost btn-xl" id="btn-offline">Play offline vs bots</button>
+    </div>
+
+    <form class="join-row" id="join-row" hidden autocomplete="off">
+      <input id="input-code" type="text" maxlength="4" placeholder="CODE"
+             inputmode="latin" autocapitalize="characters" spellcheck="false">
+      <button class="btn btn-primary" id="btn-join" type="submit">Join</button>
+    </form>
+
+    <p class="home-note" id="home-note"></p>
+  </div>
+</section>
+
+<!-- ====================================================== LOBBY ========= -->
+<section class="screen" id="screen-lobby">
+  <header class="bar">
+    <button class="icon-btn" id="btn-lobby-back" aria-label="Leave table">&#8592;</button>
+    <h2 class="bar-title">Table</h2>
+    <span class="conn" id="conn-lobby"></span>
+  </header>
+
+  <div class="lobby">
+
+    <div class="card-panel share" id="share-panel">
+      <span class="panel-label">Room code</span>
+      <div class="room-code" id="room-code">----</div>
+      <img class="qr" id="qr" alt="QR code for joining this table" hidden>
+      <p class="share-hint" id="share-hint"></p>
+      <div class="share-urls" id="share-urls"></div>
+      <button class="btn btn-sm" id="btn-copy">Copy join link</button>
+    </div>
+
+    <div class="card-panel">
+      <span class="panel-label">Players <b id="seat-count"></b></span>
+      <ul class="seat-list" id="seat-list"></ul>
+      <button class="btn btn-sm" id="btn-add-bot">+ Add a bot</button>
+    </div>
+
+    <div class="card-panel" id="options-panel">
+      <span class="panel-label">Game</span>
+      <div class="seg" id="opt-mode">
+        <button class="seg-btn" data-value="flip">UNO FLIP!</button>
+        <button class="seg-btn" data-value="classic">Classic</button>
+      </div>
+      <span class="panel-label">Play to</span>
+      <div class="seg" id="opt-target">
+        <button class="seg-btn" data-value="0">One round</button>
+        <button class="seg-btn" data-value="300">300</button>
+        <button class="seg-btn" data-value="500">500</button>
+      </div>
+    </div>
+
+  </div>
+
+  <footer class="lobby-foot">
+    <p class="hint" id="lobby-hint"></p>
+    <button class="btn btn-primary btn-xl" id="btn-deal">Deal the cards</button>
+  </footer>
+</section>
+
+<!-- ====================================================== TABLE ========= -->
+<section class="screen" id="screen-table">
+
+  <header class="hud">
+    <button class="icon-btn" id="btn-menu" aria-label="Menu">&#9776;</button>
+    <div class="hud-badges">
+      <span class="chip chip-code" id="hud-code"></span>
+      <span class="chip chip-side" id="hud-side"></span>
+      <span class="chip" id="hud-dir"></span>
+    </div>
+    <button class="icon-btn" id="btn-sound" aria-label="Turn sound off"></button>
+    <button class="icon-btn" id="btn-log" aria-label="Game log">&#9776;&#65039;</button>
+  </header>
+
+  <div class="seats" id="seats"></div>
+
+  <div class="felt">
+    <div class="felt-piles">
+      <button class="pile pile-draw" id="pile-draw" aria-label="Draw a card">
+        <span class="stack"></span>
+        <span class="pile-badge" id="draw-count">0</span>
+      </button>
+      <div class="pile pile-discard" id="pile-discard"></div>
+    </div>
+    <div class="colour-now" id="colour-now"></div>
+    <p class="status" id="status"></p>
+    <div class="actions" id="actions"></div>
+  </div>
+
+  <div class="tray">
+    <div class="tray-head">
+      <span class="tray-label" id="tray-label"></span>
+      <button class="btn btn-uno" id="btn-uno">UNO!</button>
+    </div>
+    <div class="tray-cards" id="tray-cards"></div>
+  </div>
+
+  <aside class="log-drawer" id="log-drawer">
+    <div class="log-head">
+      <span>Game log</span>
+      <button class="icon-btn" id="btn-log-close" aria-label="Close log">&times;</button>
+    </div>
+    <ul class="log" id="log"></ul>
+  </aside>
+</section>
+
+<!-- ===================================================== OVERLAYS ======= -->
+
+<div class="overlay" id="overlay-colour">
+  <div class="sheet">
+    <h3 class="sheet-title">Pick a colour</h3>
+    <div class="colour-grid" id="colour-grid"></div>
+  </div>
+</div>
+
+<div class="overlay" id="overlay-challenge">
+  <div class="sheet">
+    <h3 class="sheet-title" id="challenge-title"></h3>
+    <p class="sheet-sub" id="challenge-sub"></p>
+    <p class="hint">A Wild Draw may only be played by someone holding no card
+      of the colour in play. Think they bluffed? Challenge them.</p>
+    <button class="btn btn-primary btn-xl" id="btn-challenge">Challenge!</button>
+    <button class="btn btn-wide" id="btn-accept"></button>
+  </div>
+</div>
+
+<div class="overlay" id="overlay-round">
+  <div class="sheet">
+    <h3 class="sheet-title" id="round-title"></h3>
+    <p class="sheet-sub" id="round-sub"></p>
+    <table class="scores" id="round-scores"></table>
+    <button class="btn btn-primary btn-xl" id="btn-next">Next round</button>
+    <p class="hint" id="round-hint"></p>
+  </div>
+</div>
+
+<div class="overlay" id="overlay-menu">
+  <div class="sheet">
+    <h3 class="sheet-title">Menu</h3>
+    <button class="btn btn-wide" id="btn-rules">How to play</button>
+    <button class="btn btn-wide" id="btn-scores">Scoreboard</button>
+    <button class="btn btn-wide btn-danger" id="btn-leave">Leave the table</button>
+    <button class="btn btn-wide js-close">Back to the game</button>
+  </div>
+</div>
+
+<div class="overlay" id="overlay-scores">
+  <div class="sheet">
+    <h3 class="sheet-title">Scoreboard</h3>
+    <table class="scores" id="scores-table"></table>
+    <button class="btn btn-wide js-close">Close</button>
+  </div>
+</div>
+
+<div class="overlay" id="overlay-rules">
+  <div class="sheet sheet-tall">
+    <h3 class="sheet-title">How to play</h3>
+    <div class="rules">
+      <h4>The basics</h4>
+      <p>Match the top card of the pile by <b>colour</b>, by <b>number</b>, or by
+         <b>symbol</b>. Wild cards go on anything. If nothing fits, take a card
+         from the deck &mdash; you may play it straight away if it matches.</p>
+      <p>Play your second-to-last card and hit <b>UNO!</b>. If you forget, any
+         other player can hit <b>Catch!</b> before the next player moves, and
+         you draw two.</p>
+
+      <h4>Action cards</h4>
+      <ul>
+        <li><b>Skip</b> &mdash; the next player misses their turn.</li>
+        <li><b>Reverse</b> &mdash; turn order flips (a Skip with two players).</li>
+        <li><b>Draw Two / Four</b> &mdash; next player draws and is skipped.</li>
+        <li><b>Wild</b> &mdash; you choose the colour in play.</li>
+      </ul>
+      <p>A <b>Wild Draw</b> is only allowed when you hold no card of the colour
+         in play. The next player may <b>challenge</b> it: a bluffer takes the
+         cards instead, but a wrong challenge costs the challenger two extra.</p>
+      <p>If the first card turned up is an action card, it acts on the first
+         player.</p>
+
+      <h4>UNO FLIP!</h4>
+      <p>Every card has a Light face and a Dark face. A <b>Flip</b> card turns the
+         deck, the pile and every hand over to the Dark Side &mdash; the cards you
+         were holding become something else entirely.</p>
+      <table class="flip-table">
+        <tr><th>Light</th><th>Dark</th></tr>
+        <tr><td>Draw One</td><td>Draw Five</td></tr>
+        <tr><td>Skip</td><td>Skip Everyone</td></tr>
+        <tr><td>Reverse</td><td>Reverse</td></tr>
+        <tr><td>Wild Draw Two</td><td>Wild Draw Colour</td></tr>
+        <tr><td>Flip</td><td>Flip</td></tr>
+      </table>
+      <p class="rules-note">House rule: opponents' cards stay face down, on
+         both sides of the deck.</p>
+
+      <h4>Scoring</h4>
+      <p>The winner scores what is left in every other hand: numbers at face
+         value, Light actions 20, Dark actions 30, Wild 40, Wild Draw Two/Four
+         50, Wild Draw Colour 60.</p>
+    </div>
+    <button class="btn btn-wide js-close">Got it</button>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+<div class="reconnect" id="reconnect">Reconnecting&hellip;</div>
+
+<script src="js/cards.js"></script>
+<script src="js/game.js"></script>
+<script src="js/ai.js"></script>
+<script src="js/match.js"></script>
+<script src="js/session.js"></script>
+<script src="js/sound.js"></script>
+<script src="js/view.js"></script>
+<script src="js/app.js"></script>
+</body>
+</html>

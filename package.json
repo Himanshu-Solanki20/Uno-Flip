@@ -1,0 +1,18 @@
+{
+  "name": "uno-flip",
+  "version": "2.0.0",
+  "description": "UNO and UNO FLIP! with cross-device multiplayer",
+  "main": "server/server.js",
+  "scripts": {
+    "start": "node server/server.js",
+    "test": "node test/engine.test.js"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "dependencies": {
+    "qrcode": "^1.5.3",
+    "ws": "^8.18.0"
+  },
+  "private": true
+}
