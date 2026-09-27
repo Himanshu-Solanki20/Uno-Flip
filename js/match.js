@@ -15,6 +15,7 @@
   var C = ns.cards;
 
   var BOT_NAMES = ['Ruby', 'Milo', 'Sage', 'Nova', 'Otto', 'Wren', 'Pip'];
+  var MODES = ['flip', 'classic', 'nomercy'];
 
   var DEFAULTS = {
     botDelay: 950,      // how long a bot pauses before moving
@@ -28,7 +29,7 @@
 
     var m = {
       code: opts.code || null,
-      mode: opts.mode || 'flip',
+      mode: MODES.indexOf(opts.mode) >= 0 ? opts.mode : 'flip',
       target: opts.target || 0,
       phase: 'lobby',                 // lobby | playing | roundOver | gameOver
       seats: [],                      // { id, name, kind, online, score }
@@ -136,7 +137,7 @@
 
     function setOptions(o) {
       if (m.phase === 'playing') { return { ok: false, error: 'Round in progress.' }; }
-      if (o.mode) { m.mode = o.mode; }
+      if (MODES.indexOf(o.mode) >= 0) { m.mode = o.mode; }
       if (typeof o.target === 'number') { m.target = o.target; }
       touch('options');
       return { ok: true };
@@ -241,6 +242,7 @@
         case 'pass':  result = g.passAfterDraw(); break;
         case 'accept':    result = g.respondToWildDraw(false); break;
         case 'challenge': result = g.respondToWildDraw(true); break;
+        case 'swap':  result = g.swapWith(seatIndex(act.targetId)); break;
         default:      return { ok: false, error: 'Unknown action.' };
       }
 
@@ -342,6 +344,18 @@
         return;
       }
 
+      if (g.phase === 'rouletteColor') {
+        g.chooseColor(ns.ai.bestColor(g, idx));
+        afterMove(idx);
+        return;
+      }
+
+      if (g.phase === 'awaitSwap') {
+        g.swapWith(ns.ai.chooseSwap(g, idx));
+        afterMove(idx);
+        return;
+      }
+
       if (g.phase === 'drawnDecision') {
         var drawn = g.players[idx].hand.filter(function (c) { return c.id === g.drawnCardId; })[0];
         var pick = drawn ? ns.ai.decideDrawn(g, idx, drawn) : { action: 'pass' };
@@ -389,8 +403,19 @@
         score: p ? p.score : seat.score,
         count: p ? p.hand.length : 0,
         calledUno: p ? p.calledUno : false,
+        place: p ? p.place : 0,
+        knocked: p ? p.knocked : false,
         isTurn: !!(g && m.phase === 'playing' && g.current === i)
       };
+
+      // A FLIP card's back is its other side, so everyone at a real table
+      // sees the far side of each hand. Classic backs show nothing.
+      if (p && g.mode === 'flip') {
+        var other = g.side === 'light' ? 'dark' : 'light';
+        row.reverseFaces = p.hand.map(function (card) {
+          return C.activeFace(card, other);
+        });
+      }
 
       return row;
     }
@@ -427,10 +452,21 @@
       v.discardTop = g.discardPile.length ? g.topFace() : null;
       v.log = g.log.slice(-40);
 
-      v.awaitingColor = myTurn && g.phase === 'awaitColor';
+      v.awaitingColor = myTurn && (g.phase === 'awaitColor' || g.phase === 'rouletteColor');
+      v.roulette = g.phase === 'rouletteColor';
       v.colorChoices = C.colorsFor(g.side);
       v.canDraw = myTurn && g.phase === 'turn';
-      v.canPass = myTurn && g.phase === 'drawnDecision';
+      v.canPass = myTurn && g.phase === 'drawnDecision' && g.mode !== 'nomercy';
+      v.stack = g.stack ? { total: g.stack.total, min: g.stack.min } : null;
+      v.canSwap = myTurn && g.phase === 'awaitSwap';
+      if (v.canSwap) {
+        v.swapChoices = [];
+        g.players.forEach(function (p, i) {
+          if (i !== idx && g.isIn(i) && m.seats[i]) {
+            v.swapChoices.push({ id: m.seats[i].id, name: p.name, count: p.hand.length });
+          }
+        });
+      }
       v.drawnCardId = myTurn ? g.drawnCardId : null;
       v.unoPending = g.unoPending ? g.unoPending.player : null;
       v.canCatch = !!(g.unoPending && idx >= 0 && g.unoPending.player !== idx &&
@@ -457,7 +493,7 @@
           score: me.score,
           calledUno: me.calledUno,
           isTurn: myTurn,
-          canCallUno: me.hand.length <= 2 && !me.calledUno,
+          canCallUno: g.isIn(idx) && me.hand.length > 0 && me.hand.length <= 2 && !me.calledUno,
           hand: me.hand.map(function (card) {
             var playable = myTurn && g.isPlayable(card) &&
               (g.phase === 'turn' ||
@@ -470,6 +506,11 @@
           })
         };
       }
+
+      v.loserId = (g.loser !== null && m.seats[g.loser]) ? m.seats[g.loser].id : null;
+      v.finishIds = g.finishOrder.map(function (i) {
+        return m.seats[i] ? m.seats[i].id : null;
+      });
 
       if (g.lastWinner) {
         v.lastWinner = {

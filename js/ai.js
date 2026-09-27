@@ -38,12 +38,19 @@
       case 'draw':     score = 52 + f.draw; break;
       case 'wild':     score = 6;  break;
       case 'wildDraw': score = 10; break;
+      case 'discardAll':      score = 40 + (counts[f.color] || 0) * 6; break;
+      case 'wildReverseDraw': score = 12; break;
+      case 'roulette':        score = 14; break;
       default:         score = 15;
     }
 
+    // No Mercy: a penalty is owed - stack the cheapest card that holds it,
+    // keeping the big ones back.
+    if (g.stack) { return 100 - f.draw; }
+
     // Press the advantage when someone is about to go out.
     if (threatened) {
-      if (f.type === 'draw' || f.type === 'wildDraw') { score += 70; }
+      if (C.isDrawCard(f)) { score += 70; }
       if (f.type === 'skip' || f.type === 'skipAll')  { score += 55; }
       if (f.type === 'reverse' && g.players.length === 2) { score += 50; }
     }
@@ -76,7 +83,8 @@
   function chooseMove(g, botIdx) {
     // Bots play fair: no Wild Draw while holding the colour in play.
     var options = g.playableCards(botIdx).filter(function (card) {
-      return g.faceOf(card).type !== 'wildDraw' || g.wildDrawLegal(botIdx, card);
+      return g.mode === 'nomercy' || g.faceOf(card).type !== 'wildDraw' ||
+        g.wildDrawLegal(botIdx, card);
     });
     if (options.length === 0) { return { action: 'draw' }; }
 
@@ -90,18 +98,29 @@
     });
 
     var move = { action: 'play', cardId: best.id };
-    if (C.isWild(g.faceOf(best))) { move.color = bestColor(g, botIdx); }
+    if (C.needsColor(g.faceOf(best))) { move.color = bestColor(g, botIdx); }
     return move;
+  }
+
+  // 7's Swap: take the smallest hand still in play.
+  function chooseSwap(g, botIdx) {
+    var best = -1;
+    g.players.forEach(function (p, i) {
+      if (i === botIdx || !g.isIn(i)) { return; }
+      if (best < 0 || p.hand.length < g.players[best].hand.length) { best = i; }
+    });
+    return best;
   }
 
   // A freshly drawn playable card is worth playing, unless it would be a
   // bluffed Wild Draw. Returns a play move or { action: 'pass' }.
   function decideDrawn(g, botIdx, card) {
-    if (g.faceOf(card).type === 'wildDraw' && !g.wildDrawLegal(botIdx, card)) {
+    if (g.mode !== 'nomercy' && g.faceOf(card).type === 'wildDraw' &&
+        !g.wildDrawLegal(botIdx, card)) {
       return { action: 'pass' };
     }
     var move = { action: 'play', cardId: card.id };
-    if (C.isWild(g.faceOf(card))) { move.color = bestColor(g, botIdx); }
+    if (C.needsColor(g.faceOf(card))) { move.color = bestColor(g, botIdx); }
     return move;
   }
 
@@ -123,6 +142,7 @@
     decideDrawn: decideDrawn,
     decideChallenge: decideChallenge,
     bestColor: bestColor,
+    chooseSwap: chooseSwap,
     remembersUno: remembersUno
   };
 }));

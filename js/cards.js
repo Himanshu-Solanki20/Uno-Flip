@@ -22,6 +22,7 @@
 
   // A face is one printed side of a card.
   //   type: number | skip | skipAll | reverse | draw | flip | wild | wildDraw
+  //         | discardAll | wildReverseDraw | roulette   (the last three: No Mercy)
   function face(side, color, type, extra) {
     var f = {
       side: side,
@@ -103,6 +104,42 @@
     return faces;
   }
 
+  /* UNO Show 'Em No Mercy - 168 faces, counted from the published deck list:
+     per colour two of each number 0-9, three Draw Two, two Draw Four, three
+     Skip, two Skip Everyone, three Reverse, three Discard All; then eight Wild
+     Reverse Draw Four, four Wild Draw Six, four Wild Draw Ten and eight Wild
+     Colour Roulette. */
+  function noMercyFaces() {
+    var faces = [];
+    LIGHT_COLORS.forEach(function (color) {
+      var i;
+      for (var v = 0; v <= 9; v++) {
+        faces.push(face('light', color, 'number', { value: v }));
+        faces.push(face('light', color, 'number', { value: v }));
+      }
+      for (i = 0; i < 3; i++) {
+        faces.push(face('light', color, 'draw', { draw: 2, drawMode: 'count' }));
+        faces.push(face('light', color, 'skip'));
+        faces.push(face('light', color, 'reverse'));
+        faces.push(face('light', color, 'discardAll'));
+      }
+      for (i = 0; i < 2; i++) {
+        faces.push(face('light', color, 'draw', { draw: 4, drawMode: 'count' }));
+        faces.push(face('light', color, 'skipAll'));
+      }
+    });
+    var w;
+    for (w = 0; w < 8; w++) {
+      faces.push(face('light', 'wild', 'wildReverseDraw', { draw: 4, drawMode: 'count' }));
+      faces.push(face('light', 'wild', 'roulette', { drawMode: 'untilColor' }));
+    }
+    for (w = 0; w < 4; w++) {
+      faces.push(face('light', 'wild', 'wildDraw', { draw: 6, drawMode: 'count' }));
+      faces.push(face('light', 'wild', 'wildDraw', { draw: 10, drawMode: 'count' }));
+    }
+    return faces;
+  }
+
   /* ---------------------------------------------------------------- decks */
 
   function shuffle(list) {
@@ -116,8 +153,8 @@
   // A card holds both printed sides. Classic cards have no dark side.
   function buildDeck(mode) {
     var cards = [];
-    if (mode === 'classic') {
-      classicFaces().forEach(function (f) {
+    if (mode === 'classic' || mode === 'nomercy') {
+      (mode === 'classic' ? classicFaces() : noMercyFaces()).forEach(function (f) {
         cards.push({ id: 'c' + (nextId++), light: f, dark: null });
       });
     } else {
@@ -147,14 +184,28 @@
   }
 
   function isWild(f) {
-    return f.type === 'wild' || f.type === 'wildDraw';
+    return f.color === 'wild';
+  }
+
+  // A wild whose player names the colour. Colour Roulette leaves that to
+  // its victim.
+  function needsColor(f) {
+    return isWild(f) && f.type !== 'roulette';
+  }
+
+  // A card that hands the next player a penalty that can be stacked.
+  function isDrawCard(f) {
+    return f.type === 'draw' || f.type === 'wildReverseDraw' ||
+           (f.type === 'wildDraw' && f.drawMode === 'count');
   }
 
   // Can this face be played on top of topFace while currentColor is in play?
+  // Draw cards only match a draw card of the same value (+2 on +2).
   function facePlayable(f, topFace, currentColor) {
     if (isWild(f)) { return true; }
     if (f.color === currentColor) { return true; }
     if (f.type === 'number' && topFace.type === 'number') { return f.value === topFace.value; }
+    if (f.type === 'draw') { return topFace.type === 'draw' && f.draw === topFace.draw; }
     if (f.type !== 'number' && f.type === topFace.type) { return true; }
     return false;
   }
@@ -163,6 +214,7 @@
     if (f.type === 'number') { return f.value; }
     if (f.type === 'wild') { return 40; }
     if (f.type === 'wildDraw') { return f.drawMode === 'untilColor' ? 60 : 50; }
+    if (isWild(f)) { return 50; }         // No Mercy's other wild actions
     return f.side === 'dark' ? 30 : 20;   // skip / skipAll / reverse / draw / flip
   }
 
@@ -178,6 +230,9 @@
       case 'draw':     return '+' + f.draw;
       case 'wild':     return '✦';          // four-pointed star
       case 'wildDraw': return f.drawMode === 'untilColor' ? '+?' : '+' + f.draw;
+      case 'discardAll':      return '≡';    // identical-to bars: a stack of cards
+      case 'wildReverseDraw': return '+' + f.draw;
+      case 'roulette':        return '?';
       default:         return '?';
     }
   }
@@ -188,6 +243,9 @@
       case 'flip':     return 'FLIP';
       case 'wild':     return 'WILD';
       case 'wildDraw': return 'WILD';
+      case 'discardAll':      return 'ALL';
+      case 'wildReverseDraw': return '⇄ WILD';
+      case 'roulette':        return 'ROULETTE';
       default:         return '';
     }
   }
@@ -204,7 +262,10 @@
       case 'wild':     return 'Wild';
       case 'wildDraw': return f.drawMode === 'untilColor'
                               ? 'Wild Draw Colour'
-                              : 'Wild Draw ' + (f.draw === 4 ? 'Four' : 'Two');
+                              : 'Wild Draw ' + ({ 2: 'Two', 4: 'Four', 6: 'Six', 10: 'Ten' }[f.draw]);
+      case 'discardAll':      return color + 'Discard All';
+      case 'wildReverseDraw': return 'Wild Reverse Draw Four';
+      case 'roulette':        return 'Wild Colour Roulette';
       default:         return 'Card';
     }
   }
@@ -219,6 +280,8 @@
     activeFace: activeFace,
     hiddenFace: hiddenFace,
     isWild: isWild,
+    needsColor: needsColor,
+    isDrawCard: isDrawCard,
     facePlayable: facePlayable,
     points: points,
     glyph: glyph,

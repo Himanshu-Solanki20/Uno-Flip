@@ -219,7 +219,8 @@
       var seat = document.createElement('div');
       seat.className = 'seat';
       if (p.isTurn) { seat.classList.add('is-turn'); }
-      if (p.count === 1) { seat.classList.add('is-uno'); }
+      if (p.count === 1 && !p.place) { seat.classList.add('is-uno'); }
+      if (p.place || p.knocked) { seat.classList.add('is-out'); }
       if (p.kind !== 'bot' && !p.online) { seat.classList.add('is-away'); }
 
       var head = document.createElement('div');
@@ -242,6 +243,8 @@
       head.appendChild(av);
       head.appendChild(meta);
 
+      if (p.place) { head.appendChild(tag(ordinal(p.place), 'place')); }
+      if (p.knocked) { head.appendChild(tag('OUT', 'away')); }
       if (p.count === 1 && p.calledUno) { head.appendChild(tag('UNO!', 'uno')); }
       if (p.kind !== 'bot' && !p.online) { head.appendChild(tag('AWAY', 'away')); }
 
@@ -249,7 +252,9 @@
       fan.className = 'seat-cards';
       var shown = Math.min(p.count, 8);
       for (var i = 0; i < shown; i++) {
-        fan.appendChild(cardBack('uc-mini'));
+        fan.appendChild(p.reverseFaces
+          ? cardNode(p.reverseFaces[i], { extra: 'uc-mini' })
+          : cardBack('uc-mini'));
       }
       if (p.count > shown) {
         var more = document.createElement('span');
@@ -291,24 +296,56 @@
       actions.appendChild(button('Pass', 'btn', function () { on.pass(); }));
     }
     if (v.canDraw) {
-      actions.appendChild(button('Draw a card', 'btn btn-primary',
-        function () { on.draw(); }));
+      actions.appendChild(button(v.stack ? 'Take ' + v.stack.total : 'Draw a card',
+        'btn btn-primary', function () { on.draw(); }));
     }
+  }
+
+  function ordinal(n) {
+    var s = ['th', 'st', 'nd', 'rd'];
+    var t = n % 100;
+    return n + (s[(t - 20) % 10] || s[t] || s[0]);
+  }
+
+  function placeOf(v, id) {
+    var p = v.players.filter(function (q) { return q.id === id; })[0];
+    return p ? p.place : 0;
+  }
+
+  function nameOf(v, id) {
+    var p = v.players.filter(function (q) { return q.id === id; })[0];
+    return p ? p.name : '?';
   }
 
   function statusText(v) {
     if (!v.you) { return 'Watching this round.'; }
+    var me = v.players.filter(function (q) { return q.id === v.youId; })[0];
+    if (me && me.knocked) { return 'You were knocked out - watching the rest.'; }
+    var mine = placeOf(v, v.youId);
+    if (mine) { return 'You finished ' + ordinal(mine) + ' - watching the rest.'; }
     if (v.challenge && !v.canRespond) {
       return v.challenge.victimName + ' is deciding whether to challenge…';
     }
     if (v.you.isTurn) {
+      if (v.turnPhase === 'rouletteColor') {
+        return 'Colour Roulette! Name a colour - you draw until it turns up.';
+      }
+      if (v.turnPhase === 'awaitSwap') { return 'Pick someone to swap hands with.'; }
+      if (v.stack) {
+        return 'Stack a +' + v.stack.min + ' or bigger, or take ' + v.stack.total + '.';
+      }
       if (v.turnPhase === 'awaitColor') { return 'Choose a colour…'; }
       if (v.turnPhase === 'challenge') { return 'Take it or challenge?'; }
-      if (v.turnPhase === 'drawnDecision') { return 'You drew a card you can play.'; }
+      if (v.turnPhase === 'drawnDecision') {
+        return v.canPass ? 'You drew a card you can play.' : 'Play the card you drew.';
+      }
       var playable = v.you.hand.filter(function (c) { return c.playable; }).length;
-      return playable ? 'Your turn.' : 'Nothing matches — take a card.';
+      return playable ? 'Your turn.'
+        : (v.mode === 'nomercy' ? 'Nothing matches — draw until one does.'
+                                : 'Nothing matches — take a card.');
     }
     var cur = v.players.filter(function (p) { return p.id === v.currentId; })[0];
+    if (cur && v.stack) { return cur.name + ' must stack or take ' + v.stack.total + '…'; }
     return cur ? cur.name + ' is playing…' : '';
   }
 
@@ -388,6 +425,21 @@
     openOverlay('overlay-colour');
   }
 
+  /* ----------------------------------------------------------------- swap */
+
+  function showSwapPicker(v) {
+    var list = $('swap-list');
+    list.innerHTML = '';
+    (v.swapChoices || []).forEach(function (p) {
+      list.appendChild(button(p.name + ' · ' + p.count +
+        (p.count === 1 ? ' card' : ' cards'), 'btn btn-wide', function () {
+        closeOverlay('overlay-swap');
+        on.swap(p.id);
+      }));
+    });
+    openOverlay('overlay-swap');
+  }
+
   /* ------------------------------------------------------------ challenge */
 
   function showChallenge(v) {
@@ -427,13 +479,27 @@
   function showRoundEnd(v) {
     var w = v.lastWinner || {};
     var youWon = w.id === v.youId;
+    var youLost = v.loserId === v.youId;
     var over = v.phase === 'gameOver';
+    var mine = placeOf(v, v.youId);
+    var loser = v.loserId ? nameOf(v, v.loserId) : null;
 
-    $('round-title').textContent = over
+    // A game to a target is won on points; a single round is about who lost.
+    $('round-title').textContent = (over && v.target > 0)
       ? (youWon ? 'You win!' : w.name + ' wins the game')
-      : (youWon ? 'You won the round' : w.name + ' won the round');
-    $('round-sub').textContent = w.name + ' scored ' + w.gained +
-      ' from the other hands.';
+      : (youLost ? 'You lost this round'
+          : (loser ? loser + ' lost' + (mine ? ' - you came ' + ordinal(mine) : '')
+                   : (youWon ? 'You won the round' : w.name + ' won the round')));
+
+    var order = (v.finishIds || []).map(function (id, i) {
+      return ordinal(i + 1) + ' ' + nameOf(v, id);
+    });
+    if (loser) { order.push('last ' + loser); }
+    var knocked = v.players.filter(function (p) { return p.knocked; })
+      .map(function (p) { return p.name; });
+    if (knocked.length) { order.push('knocked out: ' + knocked.join(', ')); }
+    $('round-sub').textContent = order.join(' · ') +
+      (w.name ? '. ' + w.name + ' scored ' + w.gained + '.' : '');
     $('round-scores').innerHTML = scoreTable(v);
     $('btn-next').textContent = over ? 'Back to the lobby' : 'Next round';
     $('btn-next').hidden = !v.isHost;
@@ -459,6 +525,7 @@
     renderTable: renderTable,
     showColourPicker: showColourPicker,
     showChallenge: showChallenge,
+    showSwapPicker: showSwapPicker,
     showRoundEnd: showRoundEnd,
     showScores: showScores,
     openOverlay: openOverlay,

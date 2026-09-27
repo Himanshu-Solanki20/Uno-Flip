@@ -10,6 +10,7 @@
   var current = null;        // the latest view object
   var joinUrls = [];
   var colourOpen = false;
+  var swapOpen = false;
   var challengeOpen = false;
   var roundOpen = false;
 
@@ -106,6 +107,14 @@
       view.closeOverlay('overlay-colour');
     }
 
+    if (v.canSwap && !swapOpen) {
+      swapOpen = true;
+      view.showSwapPicker(v);
+    } else if (!v.canSwap && swapOpen) {
+      swapOpen = false;
+      view.closeOverlay('overlay-swap');
+    }
+
     if (v.canRespond && !challengeOpen) {
       challengeOpen = true;
       view.showChallenge(v);
@@ -140,7 +149,8 @@
     if (v.phase === 'playing' && prev.phase !== 'playing') {
       sound.play('deal');
     } else if (v.phase !== 'playing' && prev.phase === 'playing') {
-      var won = v.lastWinner && v.lastWinner.id === v.youId;
+      var won = v.loserId ? v.loserId !== v.youId
+                          : (v.lastWinner && v.lastWinner.id === v.youId);
       sound.play('card');
       sound.play(won ? 'win' : 'lose', 0.25);
       return;
@@ -212,6 +222,10 @@
     colour: function (colour) {
       colourOpen = false;
       session.act({ type: 'color', color: colour });
+    },
+    swap: function (targetId) {
+      swapOpen = false;
+      session.act({ type: 'swap', targetId: targetId });
     },
     uno: function () { session.act({ type: 'uno' }); },
     catchUno: function () { session.act({ type: 'catch' }); },
@@ -349,7 +363,7 @@
       if (key === 'escape') {
         var open = document.querySelector('.overlay.is-open');
         if (open && open.id !== 'overlay-colour' && open.id !== 'overlay-round' &&
-            open.id !== 'overlay-challenge') {
+            open.id !== 'overlay-challenge' && open.id !== 'overlay-swap') {
           open.classList.remove('is-open');
         }
         return;

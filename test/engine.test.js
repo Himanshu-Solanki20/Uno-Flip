@@ -30,6 +30,7 @@ console.log('\ndeck composition');
 
 const classic = C.buildDeck('classic');
 const flip = C.buildDeck('flip');
+const noMercy = C.buildDeck('nomercy');
 
 check('classic deck is 108 cards', classic.length === 108, classic.length);
 check('flip deck is 112 cards', flip.length === 112, flip.length);
@@ -61,6 +62,16 @@ check('flip dark has Draw 5', fd['Pink Draw 5'] === 2);
 check('flip dark has Skip Everyone', fd['Pink Skip Everyone'] === 2);
 check('flip dark has 4 Wild Draw Colour', fd['Wild Draw Colour'] === 4);
 
+const nm = tally(noMercy, 'light');
+check('no mercy deck is 168 cards', noMercy.length === 168, noMercy.length);
+check('no mercy has two of every number per colour', nm['Red 0'] === 2 && nm['Blue 9'] === 2);
+check('no mercy colour actions per colour',
+  nm['Green Draw 2'] === 3 && nm['Green Draw 4'] === 2 && nm['Green Skip'] === 3 &&
+  nm['Green Skip Everyone'] === 2 && nm['Green Reverse'] === 3 && nm['Green Discard All'] === 3);
+check('no mercy wild actions',
+  nm['Wild Reverse Draw Four'] === 8 && nm['Wild Draw Six'] === 4 &&
+  nm['Wild Draw Ten'] === 4 && nm['Wild Colour Roulette'] === 8);
+
 /* --------------------------------------------------- scoring of the faces */
 
 console.log('\ncard values');
@@ -73,6 +84,10 @@ check('dark actions score 30', C.points(face(flip, 'Pink Draw 5', 'dark')) === 3
 check('wild scores 40', C.points(face(classic, 'Wild')) === 40);
 check('wild draw four scores 50', C.points(face(classic, 'Wild Draw Four')) === 50);
 check('wild draw colour scores 60', C.points(face(flip, 'Wild Draw Colour', 'dark')) === 60);
+check('no mercy colour actions score 20', C.points(face(noMercy, 'Red Discard All')) === 20 &&
+  C.points(face(noMercy, 'Red Draw 4')) === 20);
+check('no mercy wild actions score 50', ['Wild Draw Ten', 'Wild Colour Roulette',
+  'Wild Reverse Draw Four'].every(n => C.points(face(noMercy, n)) === 50));
 
 /* ----------------------------------------------------- full round soak test */
 
@@ -83,14 +98,19 @@ function playRound(mode, seats, maxTurns = 4000) {
   const g = UNO.createGame({ mode, target: 0, players });
   g.startRound();
 
-  const totalCards = mode === 'classic' ? 108 : 112;
+  const totalCards = { classic: 108, flip: 112, nomercy: 168 }[mode];
+  const nomercy = mode === 'nomercy';
+  let knockouts = 0;
   let turns = 0, flips = 0, lastSide = g.side;
 
   while (g.phase !== 'gameOver' && g.phase !== 'roundOver') {
     if (++turns > maxTurns) throw new Error('round never finished');
 
     const accounted = g.players.reduce((n, p) => n + p.hand.length, 0) +
-      g.drawPile.length + g.discardPile.length;
+      g.drawPile.length + g.discardPile.length + g.setAside.length;
+    if (nomercy && g.players.some(p => g.isIn(p.index) && p.hand.length >= 25)) {
+      throw new Error('a hand of 25 is still in play');
+    }
     if (accounted !== totalCards) {
       throw new Error(`card leak: ${accounted}/${totalCards} on turn ${turns}`);
     }
@@ -99,6 +119,14 @@ function playRound(mode, seats, maxTurns = 4000) {
 
     if (g.phase === 'awaitColor') {
       if (!g.chooseColor(UNO.ai.bestColor(g, idx)).ok) throw new Error('starter colour refused');
+      continue;
+    }
+    if (g.phase === 'rouletteColor') {
+      if (!g.chooseColor(UNO.ai.bestColor(g, idx)).ok) throw new Error('roulette colour refused');
+      continue;
+    }
+    if (g.phase === 'awaitSwap') {
+      if (!g.swapWith(UNO.ai.chooseSwap(g, idx)).ok) throw new Error('swap refused');
       continue;
     }
     if (g.phase === 'challenge') {
@@ -131,20 +159,37 @@ function playRound(mode, seats, maxTurns = 4000) {
     if (g.unoPending && Math.random() < 0.5) g.catchUno((idx + 1) % seats);
     if (g.side !== lastSide) { flips++; lastSide = g.side; }
   }
+  knockouts = g.players.filter(p => p.knocked).length;
+
+  if (nomercy) {
+    const w = g.lastWinner && g.players[g.lastWinner.index];
+    if (!w) throw new Error('no winner recorded');
+    const survivors = g.players.filter(p => !p.knocked);
+    if (w.hand.length !== 0 && survivors.length !== 1 && !g.deckDry) {
+      throw new Error('no mercy winner neither went out nor outlasted everyone');
+    }
+    return { turns, flips, knockouts };
+  }
 
   if (!g.lastWinner) throw new Error('no winner recorded');
   if (g.players[g.lastWinner.index].hand.length !== 0 && !g.deckDry) {
     throw new Error('winner holds cards');
   }
+  if (!g.deckDry && g.players.filter(p => p.hand.length > 0).length !== 1) {
+    throw new Error('round ended with more than one player still in');
+  }
+  if (g.loser === null || g.players[g.loser].place !== seats) {
+    throw new Error('no loser placed last');
+  }
   return { turns, flips };
 }
 
-console.log('\n400 complete rounds');
+console.log('\n600 complete rounds');
 let soakError = null;
-const stats = { classic: [], flip: [] };
+const stats = { classic: [], flip: [], nomercy: [] };
 try {
-  for (let i = 0; i < 400; i++) {
-    const mode = i % 2 ? 'flip' : 'classic';
+  for (let i = 0; i < 600; i++) {
+    const mode = ['classic', 'flip', 'nomercy'][i % 3];
     stats[mode].push(playRound(mode, 2 + (i % 4)));
   }
 } catch (e) {
@@ -153,11 +198,12 @@ try {
 check('every round finishes cleanly with no card leak', !soakError, soakError);
 
 if (!soakError) {
-  for (const mode of ['classic', 'flip']) {
+  for (const mode of ['classic', 'flip', 'nomercy']) {
     const rows = stats[mode];
     const avg = k => (rows.reduce((n, r) => n + r[k], 0) / rows.length).toFixed(1);
     console.log(`       ${mode}: ${rows.length} rounds, avg ${avg('turns')} turns` +
-      (mode === 'flip' ? `, avg ${avg('flips')} flips` : ''));
+      (mode === 'flip' ? `, avg ${avg('flips')} flips` : '') +
+      (mode === 'nomercy' ? `, avg ${avg('knockouts')} knockouts` : ''));
   }
 }
 
@@ -333,6 +379,29 @@ function wildDrawSetup(holdsColour) {
   g.drawFromPile();
   check('a dry deck ends the round', g.phase === 'gameOver');
   check('the lowest hand wins a dry round', g.lastWinner.index === 1 && g.lastWinner.gained === 24);
+  check('the heaviest hand loses a dry round', g.loser === 0 && g.players[2].place === 2);
+}
+
+// Going out does not end the round while two others still hold cards.
+{
+  const g = fixedGame('classic', 3);
+  const card = (color, value) => ({ id: color + value, light: { side: 'light', color,
+    type: 'number', value, draw: 0, drawMode: null }, dark: null });
+  g.discardPile = [card('red', 1)];
+  g.currentColor = 'red';
+  g.players[0].hand = [card('red', 5)];
+  g.players[1].hand = [card('red', 6), card('blue', 2)];
+  g.players[2].hand = [card('red', 7)];
+  const res = g.playCard('red5');
+  check('the first player out does not end the round',
+    res.ok && g.phase === 'turn' && g.players[0].place === 1 && g.current === 1);
+  check('the first player out scores the other hands', g.lastWinner.gained === 15);
+  g.playCard('red6');
+  check('turns step over a player who is out', g.current === 2);
+  g.playCard('red7');
+  check('the last one holding cards loses',
+    g.phase === 'gameOver' && g.loser === 1 && g.players[2].place === 2 &&
+    g.players[1].place === 3);
 }
 
 // Catching a missed UNO.
@@ -380,6 +449,150 @@ function wildDrawSetup(holdsColour) {
     g.chooseColor('blue').ok && g.currentColor === 'blue' && g.phase === 'turn');
 }
 
+/* -------------------------------------------------------------- No Mercy */
+
+console.log('\nUNO Show Em No Mercy');
+
+// A No Mercy table forced onto a Red 5, seat 0 to play, with chosen hands.
+function mercyGame(seats, hands) {
+  const g = fixedGame('nomercy', seats);
+  hands.forEach((h, i) => { g.players[i].hand = h; });
+  g.drawPile = C.buildDeck('nomercy');
+  return g;
+}
+let uid = 0;
+const nmCard = (color, type, extra) => ({ id: 'n' + (uid++), light: Object.assign(
+  { side: 'light', color, type, value: null, draw: 0, drawMode: null }, extra || {}), dark: null });
+const num = (color, value) => nmCard(color, 'number', { value });
+const plus = (color, n) => nmCard(color, 'draw', { draw: n, drawMode: 'count' });
+const wildPlus = n => nmCard('wild', 'wildDraw', { draw: n, drawMode: 'count' });
+const revPlus4 = () => nmCard('wild', 'wildReverseDraw', { draw: 4, drawMode: 'count' });
+
+{
+  let bad = null;
+  for (let i = 0; i < 300 && !bad; i++) {
+    const g = dealtGame('nomercy', 3);
+    if (g.topFace().type !== 'number') bad = 'starter was ' + C.name(g.topFace());
+    else if (g.current !== 0 || g.phase !== 'turn') bad = 'the starter acted';
+  }
+  check('the starting card is always a number and does nothing', !bad, bad);
+}
+{
+  const a = plus('red', 2), b = plus('blue', 4), c = wildPlus(6), low = plus('blue', 2);
+  const g = mercyGame(3, [[a, num('red', 1)], [b, num('green', 1), low], [c, num('green', 2)]]);
+  g.playCard(a.id);
+  check('a +2 leaves a penalty owed by the next player',
+    g.current === 1 && g.stack && g.stack.total === 2);
+  check('only draw cards can answer a penalty', !g.isPlayable(g.players[1].hand[1]));
+  check('a higher draw card of another colour can be stacked', g.playCard(b.id).ok);
+  check('the penalty grows', g.current === 2 && g.stack.total === 6 && g.stack.min === 4);
+  g.playCard(c.id, 'green');
+  const before = g.players[0].hand.length;
+  g.drawFromPile();
+  check('the player who cannot stack draws the whole pile',
+    g.players[0].hand.length === before + 12 && !g.stack && g.current === 1);
+}
+{
+  const four = plus('red', 4), two = plus('red', 2);
+  const g = mercyGame(3, [[four, num('red', 1)], [two, num('green', 1)], [num('green', 2)]]);
+  g.playCard(four.id);
+  check('a lower draw card cannot be stacked, even in the same colour', !g.isPlayable(two));
+}
+{
+  const r = revPlus4();
+  const g = mercyGame(2, [[r, num('red', 1)], [num('green', 1), num('green', 2)]]);
+  g.playCard(r.id, 'blue');
+  check('with two players Wild Reverse Draw 4 turns the penalty on its player',
+    g.current === 0 && g.stack.total === 4);
+}
+{
+  const r = revPlus4();
+  const g = mercyGame(3, [[r, num('red', 1)], [num('green', 1)], [num('green', 2), num('blue', 3)]]);
+  g.playCard(r.id, 'blue');
+  check('Wild Reverse Draw 4 reverses, then hits the next player',
+    g.direction === -1 && g.current === 2 && g.stack.total === 4);
+}
+{
+  const d = nmCard('red', 'discardAll');
+  const g = mercyGame(2, [[d, num('red', 1), num('red', 9), num('blue', 3)],
+    [num('green', 1), num('green', 2)]]);
+  g.playCard(d.id);
+  check('Discard All sheds every card of its colour',
+    g.players[0].hand.length === 1 && g.topFace().type === 'discardAll' &&
+    g.discardPile.length === 4);
+}
+{
+  const seven = num('red', 7);
+  const mine = [seven, num('blue', 1), num('blue', 2), num('blue', 3)];
+  const g = mercyGame(3, [mine, [num('green', 1), num('green', 2)], [num('green', 4)]]);
+  const res = g.playCard(seven.id);
+  check('a 7 asks who to swap with', res.needsSwap && g.phase === 'awaitSwap');
+  check('you cannot swap with yourself', !g.swapWith(0).ok);
+  g.swapWith(2);
+  check('7 swaps the two hands',
+    g.players[0].hand.length === 1 && g.players[2].hand.length === 3 && g.current === 1);
+}
+{
+  const zero = num('red', 0);
+  const hands = [[zero, num('blue', 1)], [num('green', 1), num('green', 2)], [num('yellow', 3)]];
+  const ids = h => h.map(c => c.id).join();
+  const want = [ids(hands[2]), ids(hands[0].slice(1)), ids(hands[1])];
+  const g = mercyGame(3, hands);
+  g.playCard(zero.id);
+  check('0 passes every hand on in the direction of play',
+    g.players.every((p, i) => ids(p.hand) === want[i]));
+}
+{
+  const spin = nmCard('wild', 'roulette', { drawMode: 'untilColor' });
+  const g = mercyGame(3, [[spin, num('red', 1)], [num('green', 1)], [num('green', 2), num('blue', 3)]]);
+  g.playCard(spin.id);
+  check('Colour Roulette hands the colour choice to the next player',
+    g.phase === 'rouletteColor' && g.current === 1);
+  g.chooseColor('yellow');
+  const hand = g.players[1].hand;
+  check('the victim keeps drawing until that colour shows, then is skipped',
+    g.faceOf(hand[hand.length - 1]).color === 'yellow' && g.currentColor === 'yellow' &&
+    g.current === 2);
+}
+{
+  const g = mercyGame(3, [[num('blue', 1), num('blue', 2)], [num('green', 1)],
+    [num('green', 2), num('blue', 3)]]);
+  g.drawPile = [num('red', 8), num('green', 9), num('yellow', 4)];   // drawn from the end
+  const res = g.drawFromPile();
+  check('with no match you draw until one fits', res.playable && g.players[0].hand.length === 5 && g.faceOf(res.card).color === 'red');
+  check('and you may not pass on it', !g.passAfterDraw().ok);
+  check('and only the drawn card may be played',
+    !g.playCard(g.players[0].hand[0].id).ok && g.playCard(res.card.id).ok);
+}
+{
+  const loaded = [];
+  for (let i = 0; i < 16; i++) loaded.push(num('green', i % 10));
+  const g = mercyGame(3, [[wildPlus(10), num('red', 1)], loaded, [num('green', 2), num('blue', 3)]]);
+  g.playCard(g.players[0].hand[0].id, 'red');
+  g.drawFromPile();
+  check('25 cards knocks a player out', g.players[1].knocked && g.players[1].hand.length === 0);
+  check('their hand is set aside', g.setAside.length === 26);
+  check('play carries on around them', g.current === 2 && g.phase === 'turn');
+}
+{
+  const loaded = [];
+  for (let i = 0; i < 16; i++) loaded.push(num('green', i % 10));
+  const g = mercyGame(2, [[wildPlus(10), num('red', 1)], loaded]);
+  g.playCard(g.players[0].hand[0].id, 'red');
+  g.drawFromPile();
+  check('the last player not knocked out wins',
+    g.phase === 'gameOver' && g.lastWinner.index === 0);
+  check('the winner scores 250 per knockout plus the hands in play',
+    g.lastWinner.gained === 250);
+}
+{
+  const g = mercyGame(3, [[num('red', 9)], [num('green', 1), plus('blue', 2)], [num('yellow', 3)]]);
+  g.playCard(g.players[0].hand[0].id);
+  check('going out wins the hand at once in No Mercy',
+    g.phase === 'gameOver' && g.lastWinner.index === 0 && g.lastWinner.gained === 24 &&
+    g.loser === null);
+}
+
 /* --------------------------------------------------------- match + views */
 
 console.log('\nmatch layer');
@@ -398,8 +611,12 @@ console.log('\nmatch layer');
   check('other seats expose no card ids',
     v.players.every(p => !p.hand && !p.cards));
   check('other seats expose only a count', v.players.every(p => typeof p.count === 'number'));
-  check('flip mode hides opponent faces too',
-    v.players.every(p => !p.reverseFaces));
+  check('flip mode shows the far side of opponent cards',
+    v.players.every((p, i) => p.reverseFaces &&
+      p.reverseFaces.length === p.count &&
+      p.reverseFaces.every(f => f.side === (m.game.side === 'light' ? 'dark' : 'light'))));
+  check('flip mode never sends card ids for the far side',
+    v.players.every(p => p.reverseFaces.every(f => f.id === undefined)));
 
   const bad = m.action('bob', { type: 'play', cardId: v.you.hand[0].id });
   check('you cannot play out of turn', !bad.ok);

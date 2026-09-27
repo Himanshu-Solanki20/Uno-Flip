@@ -72,12 +72,14 @@
       <div class="seg" id="opt-mode">
         <button class="seg-btn" data-value="flip">UNO FLIP!</button>
         <button class="seg-btn" data-value="classic">Classic</button>
+        <button class="seg-btn" data-value="nomercy">No Mercy</button>
       </div>
       <span class="panel-label">Play to</span>
       <div class="seg" id="opt-target">
         <button class="seg-btn" data-value="0">One round</button>
         <button class="seg-btn" data-value="300">300</button>
         <button class="seg-btn" data-value="500">500</button>
+        <button class="seg-btn" data-value="1000">1000</button>
       </div>
     </div>
 
@@ -141,6 +143,14 @@
   <div class="sheet">
     <h3 class="sheet-title">Pick a colour</h3>
     <div class="colour-grid" id="colour-grid"></div>
+  </div>
+</div>
+
+<div class="overlay" id="overlay-swap">
+  <div class="sheet">
+    <h3 class="sheet-title">Swap hands with&hellip;</h3>
+    <p class="sheet-sub">You played a 7 &mdash; pick who gets your hand.</p>
+    <div class="swap-list" id="swap-list"></div>
   </div>
 </div>
 
@@ -220,13 +230,38 @@
         <tr><td>Wild Draw Two</td><td>Wild Draw Colour</td></tr>
         <tr><td>Flip</td><td>Flip</td></tr>
       </table>
-      <p class="rules-note">House rule: opponents' cards stay face down, on
-         both sides of the deck.</p>
+      <p class="rules-note">You can see the far side of everyone else's cards,
+         just as with a real FLIP deck.</p>
+
+      <h4>UNO Show 'Em No Mercy</h4>
+      <p>A 168-card deck with official rules that are much harsher:</p>
+      <ul>
+        <li><b>No match?</b> Keep drawing until a card fits, then play it.</li>
+        <li><b>Stacking</b> &mdash; answer a +2, +4, +6 or +10 with a draw card
+          of equal or higher value (any colour). The penalty adds up, and
+          whoever cannot stack takes all of it.</li>
+        <li><b>7</b> &mdash; swap hands with a player of your choice.
+          <b>0</b> &mdash; everyone passes their hand on.</li>
+        <li><b>Discard All</b> &mdash; throw down every card of that colour.</li>
+        <li><b>Skip Everyone</b> &mdash; you go again.</li>
+        <li><b>Wild Reverse Draw 4</b> &mdash; reverse, then the next player
+          draws 4 (with two players it comes back at you).</li>
+        <li><b>Wild Draw 6 / 10</b> &mdash; the next player draws 6 or 10.</li>
+        <li><b>Colour Roulette</b> &mdash; the next player names a colour and
+          draws until one turns up.</li>
+        <li><b>Mercy rule</b> &mdash; 25 cards in your hand and you are out.</li>
+      </ul>
+      <p>Go out first, or be the last player standing, to win the hand. The
+         winner scores the other hands (colour actions 20, wild actions 50)
+         plus 250 for every player knocked out.</p>
 
       <h4>Scoring</h4>
-      <p>The winner scores what is left in every other hand: numbers at face
-         value, Light actions 20, Dark actions 30, Wild 40, Wild Draw Two/Four
-         50, Wild Draw Colour 60.</p>
+      <p>House rule for Classic and FLIP: the round carries on after someone
+         goes out, until only one player is left holding cards &mdash; that
+         player loses.</p>
+      <p>The first player out scores what is left in every other hand: numbers
+         at face value, Light actions 20, Dark actions 30, Wild 40, Wild Draw
+         Two/Four 50, Wild Draw Colour 60.</p>
     </div>
     <button class="btn btn-wide js-close">Got it</button>
   </div>

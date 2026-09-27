@@ -217,7 +217,12 @@ function play(c) {
     c.view.players.forEach(p => {
       if (p.id === c.playerId) { return; }
       if (p.hand || p.cards) { leaks.push(`${c.name} can see ${p.name}'s hand`); }
-      if (p.reverseFaces) { leaks.push(`${c.name} sees ${p.name}'s card faces`); }
+      // FLIP shows the far side of each card, as a real deck does - never
+      // the side in play, and never a card id.
+      const far = c.view.side === 'light' ? 'dark' : 'light';
+      if (p.reverseFaces && p.reverseFaces.some(f => f.side !== far || f.id !== undefined)) {
+        leaks.push(`${c.name} sees the playing side of ${p.name}'s cards`);
+      }
     });
     if (c.view.you.id !== c.playerId) { leaks.push(`${c.name} got the wrong seat`); }
   });

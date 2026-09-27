@@ -246,6 +246,7 @@ body[data-screen="table"] #screen-table { display: flex; }
 .tag-you  { background: rgba(255, 255, 255, 0.3); }
 .tag-uno  { background: #ff3b30; }
 .tag-away { background: rgba(255, 255, 255, 0.12); color: var(--muted); }
+.tag-place { background: #2e9e4f; }
 
 .seg { display: flex; gap: 6px; }
 .seg-btn {
@@ -309,6 +310,8 @@ body[data-side="dark"] .chip-side { background: #241636; color: #dcc6ff; border-
 }
 .seat.is-uno { background: rgba(208, 22, 12, 0.3); }
 .seat.is-away { opacity: 0.55; }
+.seat.is-out { opacity: 0.7; }
+.swap-list { display: grid; gap: 8px; }
 
 .seat-top { display: flex; align-items: center; gap: 8px; margin-bottom: 7px; }
 .seat-meta { display: flex; flex-direction: column; min-width: 0; }
@@ -483,7 +486,9 @@ body[data-side="dark"] .chip-side { background: #241636; color: #dcc6ff; border-
   font-weight: 900; line-height: 1;
   color: var(--uc-c);
 }
-.uc-t-draw .uc-glyph, .uc-t-wildDraw .uc-glyph { font-size: calc(var(--uc-w) * 0.38); }
+.uc-t-draw .uc-glyph, .uc-t-wildDraw .uc-glyph,
+.uc-t-wildReverseDraw .uc-glyph { font-size: calc(var(--uc-w) * 0.38); }
+.uc-t-roulette .uc-sub { font-size: calc(var(--uc-w) * 0.1); }
 .uc-wild .uc-glyph { color: #fff; text-shadow: 0 1px 4px rgba(0, 0, 0, 0.65); }
 
 .uc-sub {
