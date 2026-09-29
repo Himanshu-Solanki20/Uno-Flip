@@ -375,7 +375,7 @@ if (require.main === module) {
   server.listen(PORT, '0.0.0.0', () => {
     const urls = lanUrls();
     console.log('');
-    console.log('  UNO FLIP!  multiplayer server');
+    console.log('  UNO  multiplayer server');
     console.log('  ' + '-'.repeat(38));
     console.log(`  this computer   http://localhost:${PORT}`);
     urls.forEach(u => console.log(`  other devices   ${u}`));

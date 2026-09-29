@@ -127,10 +127,6 @@ body[data-screen="table"] #screen-table { display: flex; }
   transform: skewX(-9deg);
   text-shadow: 3px 3px 0 var(--red), 6px 6px 0 rgba(0, 0, 0, 0.35);
 }
-.logo-flip {
-  font-size: 22px; font-weight: 900; color: var(--accent);
-  transform: skewX(-9deg);
-}
 
 .tagline { margin: 10px 0 26px; color: var(--muted); font-size: 14px; }
 
@@ -161,6 +157,17 @@ body[data-screen="table"] #screen-table { display: flex; }
 .join-row .btn { flex: 0 0 auto; }
 
 .home-note { margin-top: 22px; font-size: 12.5px; line-height: 1.5; color: var(--muted); }
+
+.credit { margin: 18px 0 0; font-size: 12px; color: var(--muted); text-align: center; }
+.credit a {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 34px; height: 34px; margin: 0 3px; border-radius: 50%;
+  color: inherit; border: 1px solid var(--line); background: var(--panel);
+}
+.credit a:hover, .credit a:focus-visible { color: var(--accent); border-color: var(--accent); }
+.lobby-foot .credit { margin-top: 9px; font-size: 11px; }
+.lobby-foot .credit a { width: 26px; height: 26px; }
+.lobby-foot .credit svg { width: 14px; height: 14px; }
 
 /* ------------------------------------------------------------------ lobby */
 
